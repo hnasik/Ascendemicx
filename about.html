@@ -1,0 +1,157 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>AscendemicX — About</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    .about-section {
+      max-width: 1100px;
+      margin: 2rem auto;
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 2rem;
+      flex-wrap: wrap;
+      padding: 1rem;
+    }
+
+    .about-text {
+      flex: 1 1 450px;
+    }
+
+    .about-text h1 {
+      font-size: 2rem;
+      margin-bottom: 1rem;
+    }
+
+    .about-text p {
+      color: #555;
+      line-height: 1.6;
+    }
+
+    .about-image {
+      flex: 1 1 400px;
+      text-align: center;
+    }
+
+    .about-image img {
+      max-width: 100%;
+      border-radius: 10px;
+      height: auto;
+      box-shadow: 0 4px 15px rgba(0,0,0,0.1);
+    }
+
+    /* responsive for smaller screens */
+    @media (max-width: 768px) {
+      .about-section {
+        flex-direction: column;
+        text-align: center;
+      }
+      .about-image {
+        order: -1; /* show image above text on small screens */
+      }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html">AscendemicX</a>
+      <nav class="main-nav">
+        <a href="index.html">Home</a>
+        <a href="mentor.html">Mentor</a>
+        <a href="faculties.html">Faculties</a>
+        <a href="courses.html">Courses</a>
+        <a href="career.html">Career</a>
+        <a href="blog.html">Blog</a>
+        <a href="about.html" class="active">About</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <!-- Updated layout: text and image side-by-side -->
+    <section class="about-section">
+      <div class="about-text">
+        <h1 id="about-title">About Us</h1>
+        <p id="about-description">Our mission is to empower students with practical learning and mentorship.</p>
+      </div>
+      <div class="about-image">
+        <img id="about-image" alt="About image" style="display:none" />
+      </div>
+    </section>
+  </main>
+
+  <footer class="site-footer"><div class="container">© AscendemicX 2025</div></footer>
+
+  <!-- Firebase compat SDK -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+
+  <script src="assets/js/firebase-init.js"></script>
+  <script src="assets/js/main.js"></script>
+
+  <script>
+  (function(){
+    async function resolveStorageUrl(url) {
+      if (!url) return null;
+      if (url.startsWith('http://') || url.startsWith('https://')) return url;
+      if (url.startsWith('gs://')) {
+        try {
+          const ref = firebase.storage().refFromURL(url);
+          return await ref.getDownloadURL();
+        } catch (err) {
+          console.warn('Storage URL resolution failed', err);
+          return null;
+        }
+      }
+      return null;
+    }
+
+    async function fetchAboutMeta() {
+      const coll = db.collection('site_meta');
+      try {
+        const snap = await coll.doc('about').get();
+        if (snap.exists) return snap.data();
+
+        const q = await coll.where('page', '==', 'about').limit(1).get();
+        if (!q.empty) return q.docs[0].data();
+
+        const fallback = await coll.limit(1).get();
+        if (!fallback.empty) return fallback.docs[0].data();
+
+        return null;
+      } catch (err) {
+        console.error('Error fetching about data', err);
+        return null;
+      }
+    }
+
+    async function populateAbout() {
+      const data = await fetchAboutMeta();
+      if (!data) return;
+
+      document.getElementById('about-title').textContent = data.title || "About Us";
+      document.getElementById('about-description').textContent = data.description || data.body || data.content || "";
+
+      const imgField = data.imageUrl || data.image || data.heroImage;
+      if (imgField) {
+        const resolved = await resolveStorageUrl(imgField);
+        if (resolved) {
+          const img = document.getElementById('about-image');
+          img.src = resolved;
+          img.style.display = 'block';
+        }
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', populateAbout);
+  })();
+  </script>
+</body>
+</html>
