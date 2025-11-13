@@ -1,0 +1,175 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>AscendemicX — Mentors</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    /* Mentor page specific styles */
+    .hero { padding:28px 0; border-bottom:1px solid #eee; margin-bottom:18px; }
+    .hero h1 { margin:0 0 6px; font-size:28px; }
+    .hero p { margin:0; color:#666; }
+
+    .mentors-grid {
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(240px, 1fr));
+      gap:16px;
+    }
+
+    .mentor-card {
+      display:flex;
+      gap:12px;
+      align-items:flex-start;
+      background:#fff;
+      border:1px solid #e8e8e8;
+      padding:12px;
+      border-radius:10px;
+      box-shadow:0 6px 18px rgba(14,14,14,0.04);
+    }
+
+    .mentor-card img {
+      width:76px;
+      height:76px;
+      object-fit:cover;
+      border-radius:8px;
+      flex:0 0 76px;
+    }
+
+    .mentor-card h3 { margin:0; font-size:16px; color:#111; }
+    .mentor-card .muted { margin:4px 0 0; color:#666; font-size:13px; }
+    .mentor-card p.bio { margin:8px 0 0; color:#444; font-size:13px; }
+
+    .loader, .empty { text-align:center; color:#666; padding:36px 0; }
+
+    @media (max-width:480px){
+      .mentor-card { padding:10px; }
+      .mentor-card img { width:64px; height:64px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html">AscendemicX</a>
+      <nav class="main-nav">
+        <a href="index.html">Home</a>
+        <a href="mentor.html" aria-current="page">Mentor</a>
+        <a href="faculties.html">Faculties</a>
+        <a href="courses.html">Courses</a>
+        <a href="career.html">Career</a>
+        <a href="blog.html">Blog</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Mentors</h1>
+      <p>Meet our expert mentors — industry professionals and academic guides who help you grow.</p>
+    </section>
+
+    <section>
+      <div id="mentors-grid" class="mentors-grid" aria-live="polite"></div>
+      <div id="mentors-loader" class="loader" style="display:none">Loading mentors…</div>
+      <div id="mentors-empty" class="empty" style="display:none">No mentors found yet.</div>
+    </section>
+  </main>
+
+  <footer class="site-footer"><div class="container">© AscendemicX 2025</div></footer>
+
+  <!-- Firebase SDKs (compat used across your site) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+  <script src="assets/js/firebase-init.js"></script>
+
+  <script>
+    // Resolve image urls: accept http(s) or gs:// paths
+    async function resolveImageUrl(imageUrl) {
+      if (!imageUrl) return 'assets/images/mentor-placeholder.jpg';
+      if (imageUrl.startsWith('http://') || imageUrl.startsWith('https://')) return imageUrl;
+      if (imageUrl.startsWith('gs://')) {
+        try {
+          const ref = firebase.storage().refFromURL(imageUrl);
+          return await ref.getDownloadURL();
+        } catch (err) {
+          console.warn('Storage getDownloadURL failed for', imageUrl, err);
+          return 'assets/images/mentor-placeholder.jpg';
+        }
+      }
+      return 'assets/images/mentor-placeholder.jpg';
+    }
+
+    // Create a single mentor card element
+    function createMentorCard(data, imgUrl) {
+      const card = document.createElement('article');
+      card.className = 'mentor-card';
+
+      card.innerHTML = `
+        <img src="${imgUrl}" alt="${escapeHtml(data.name || 'Mentor')}">
+        <div>
+          <h3>${escapeHtml(data.name || 'Unnamed')}</h3>
+          <p class="muted">${escapeHtml(data.specialization || '')}</p>
+          ${data.bio ? `<p class="bio">${escapeHtml(data.bio)}</p>` : ''}
+        </div>
+      `;
+
+      return card;
+    }
+
+    // Basic HTML escaping
+    function escapeHtml(text) {
+      return String(text)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/\"/g, '&quot;')
+        .replace(/'/g, '&#039;');
+    }
+
+    // Load mentors from Firestore
+    async function loadMentors() {
+      const grid = document.getElementById('mentors-grid');
+      const loader = document.getElementById('mentors-loader');
+      const empty = document.getElementById('mentors-empty');
+
+      grid.innerHTML = '';
+      loader.style.display = 'block';
+      empty.style.display = 'none';
+
+      try {
+        if (!firebase || !firebase.firestore) throw new Error('Firebase not initialized');
+        const db = firebase.firestore();
+        const snapshot = await db.collection('mentors').orderBy('createdAt', 'desc').get();
+
+        if (snapshot.empty) {
+          empty.style.display = 'block';
+          return;
+        }
+
+        for (const doc of snapshot.docs) {
+          const data = doc.data();
+          const imgUrl = await resolveImageUrl(data.imageUrl || '');
+          const card = createMentorCard(data, imgUrl);
+          grid.appendChild(card);
+        }
+      } catch (err) {
+        console.error('Error loading mentors:', err);
+        grid.innerHTML = '<p>Failed to load mentors. Check console and Firebase setup.</p>';
+      } finally {
+        loader.style.display = 'none';
+      }
+    }
+
+    document.addEventListener('DOMContentLoaded', () => {
+      loadMentors();
+    });
+  </script>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>

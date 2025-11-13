@@ -1,0 +1,231 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>AscendemicX — Faculties</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    .faculties-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap: 1.25rem;
+      margin: 1.5rem 0;
+    }
+
+    .faculty-card {
+      background: #879c92;
+      border-radius: 10px;
+      padding: 0.50rem;
+      box-shadow: 0 4px 14px rgba(0,0,0,0.06);
+      display: flex;
+      gap: 0.50rem;
+      align-items: center;
+      transition: transform .15s ease;
+    }
+    .faculty-card:hover { transform: translateY(-4px); }
+
+    .faculty-avatar {
+      width: 150px;
+      height: 150px;
+      flex: 0 0 200px;
+      border-radius: 8px;
+      overflow: hidden;
+      background: linear-gradient(180deg, #f3f3f3, #e9e9e9);
+      display: flex;
+      align-items: center;
+      justify-content: center;
+    }
+
+    .faculty-avatar img {
+      width: 100%;
+      height: 100%;
+      object-fit: cover;
+      display: block;
+    }
+
+    .faculty-info {
+      flex: 1 1 auto;
+      min-width: 0;
+    }
+
+    .faculty-info h3 {
+      margin: 0 0 .25rem 0;
+      font-size: 1.05rem;
+    }
+    .faculty-info .muted {
+      color: #666;
+      font-size: 0.9rem;
+      margin-bottom: .5rem;
+    }
+    .faculty-info p {
+      margin: .25rem 0;
+      color: #444;
+      line-height: 1.4;
+      font-size: .95rem;
+    }
+
+    /* Mobile: stack avatar above info */
+    @media (max-width: 720px) {
+      .faculty-card {
+        flex-direction: column;
+        align-items: stretch;
+        text-align: center;
+      }
+      .faculty-avatar { margin: 0 auto 0.75rem; }
+      .faculty-info { padding: 0 0.5rem; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html">AscendemicX</a>
+      <nav class="main-nav">
+        <a href="index.html">Home</a>
+        <a href="mentor.html">Mentor</a>
+        <a href="faculties.html" class="active">Faculties</a>
+        <a href="courses.html">Courses</a>
+        <a href="career.html">Career</a>
+        <a href="blog.html">Blog</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <h1>Faculties</h1>
+    <p class="muted">Department-wise faculty list.</p>
+
+    <div id="faculties-container" class="faculties-grid">
+      <p class="muted">Loading faculties...</p>
+    </div>
+  </main>
+
+  <footer class="site-footer"><div class="container">© AscendemicX 2025</div></footer>
+
+  <!-- Firebase compat SDKs (same as other pages) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-auth-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-storage-compat.js"></script>
+
+  <script src="assets/js/firebase-init.js"></script>
+  <script src="assets/js/main.js"></script>
+
+  <script>
+  (function() {
+    // Resolve http(s) or gs:// urls to usable download urls
+    async function resolveStorageUrl(url) {
+      if (!url) return null;
+      if (url.startsWith('http://') || url.startsWith('https://')) return url;
+      if (url.startsWith('gs://')) {
+        try {
+          const ref = firebase.storage().refFromURL(url);
+          return await ref.getDownloadURL();
+        } catch (err) {
+          console.warn('Failed to resolve gs:// URL:', err);
+          return null;
+        }
+      }
+      return null;
+    }
+
+    // Build a faculty card element
+    function makeFacultyCard(data) {
+      const wrapper = document.createElement('div');
+      wrapper.className = 'faculty-card';
+
+      const avatar = document.createElement('div');
+      avatar.className = 'faculty-avatar';
+      // placeholder until image loads
+      avatar.innerHTML = '<div class="muted">No image</div>';
+
+      const info = document.createElement('div');
+      info.className = 'faculty-info';
+
+      const name = document.createElement('h3');
+      name.textContent = data.name || 'Unnamed';
+
+      const meta = document.createElement('div');
+      meta.className = 'muted';
+      const dept = data.department ? data.department : '';
+      const desig = data.designation ? ` • ${data.designation}` : '';
+      meta.textContent = (dept + desig).trim();
+
+      const bio = document.createElement('p');
+      bio.textContent = data.bio || '';
+
+      const contact = document.createElement('p');
+      contact.className = 'muted';
+      if (data.email) contact.textContent = data.email;
+
+      info.appendChild(name);
+      if (meta.textContent) info.appendChild(meta);
+      if (bio.textContent) info.appendChild(bio);
+      if (contact.textContent) info.appendChild(contact);
+
+      wrapper.appendChild(avatar);
+      wrapper.appendChild(info);
+
+      // load image if available
+      if (data.imageUrl) {
+        resolveStorageUrl(data.imageUrl).then(url => {
+          if (url) {
+            avatar.innerHTML = '';
+            const img = document.createElement('img');
+            img.src = url;
+            img.alt = data.name || 'Faculty Image';
+            avatar.appendChild(img);
+          }
+        }).catch(err => {
+          console.warn('Error loading faculty image:', err);
+        });
+      }
+
+      return wrapper;
+    }
+
+    // Load faculties from Firestore
+    async function loadFaculties() {
+      const container = document.getElementById('faculties-container');
+      container.innerHTML = '<p class="muted">Loading faculties...</p>';
+
+      try {
+        // Read all documents from 'faculties'. Optionally order by `order` or `name`.
+        const snapshot = await db.collection('faculties').orderBy('order', 'asc').get().catch(async (err) => {
+          // if orderBy fails (no 'order' field), fallback to plain get()
+          if (err && err.code === 'failed-precondition') {
+            return await db.collection('faculties').get();
+          }
+          throw err;
+        });
+
+        if (snapshot.empty) {
+          container.innerHTML = '<p class="muted">No faculties found.</p>';
+          return;
+        }
+
+        container.innerHTML = '';
+        for (const doc of snapshot.docs) {
+          const data = doc.data();
+          const card = makeFacultyCard(data);
+          container.appendChild(card);
+        }
+      } catch (err) {
+        console.error('Error fetching faculties:', err);
+        container.innerHTML = '<p class="muted">Failed to load faculties. Check the console for details.</p>';
+      }
+    }
+
+    // init after DOM loaded
+    if (document.readyState === 'loading') {
+      document.addEventListener('DOMContentLoaded', loadFaculties);
+    } else {
+      loadFaculties();
+    }
+  })();
+  </script>
+</body>
+</html>

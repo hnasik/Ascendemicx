@@ -1,0 +1,244 @@
+﻿<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8"/>
+  <meta name="viewport" content="width=device-width,initial-scale=1"/>
+  <title>AscendemicX — Blog</title>
+  <link rel="stylesheet" href="assets/css/styles.css">
+  <style>
+    /* Page-specific styles */
+    .hero {
+      padding: 36px 0;
+      border-bottom: 1px solid #eee;
+      margin-bottom: 20px;
+    }
+    .hero h1 { margin:0 0 6px; font-size:28px; }
+    .hero p { margin:0; color:#666; }
+
+    .posts-grid {
+      display:grid;
+      grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+      gap:18px;
+    }
+    .post-card {
+      background:#fff;
+      border:1px solid #e8e8e8;
+      border-radius:10px;
+      overflow:hidden;
+      box-shadow:0 4px 12px rgba(10,10,10,0.04);
+      display:flex;
+      flex-direction:column;
+      min-height: 220px;
+    }
+    .post-card img {
+      width:100%;
+      height:150px;
+      object-fit:cover;
+      display:block;
+    }
+    .post-body {
+      padding:14px;
+      display:flex;
+      flex-direction:column;
+      gap:8px;
+      flex:1;
+    }
+    .post-title {
+      font-size:16px;
+      margin:0;
+      color:#111;
+    }
+    .post-excerpt {
+      color:#555;
+      font-size:14px;
+      flex:1;
+    }
+    .post-meta {
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+    }
+    .read-more {
+      background:#2563eb;
+      color:#fff;
+      padding:8px 10px;
+      border-radius:6px;
+      text-decoration:none;
+      font-size:14px;
+      font-weight:600;
+    }
+    /* Empty state / loader */
+    .loader, .empty {
+      text-align:center;
+      color:#666;
+      padding:40px 0;
+    }
+
+    /* Responsive tweak */
+    @media (max-width:480px){
+      .hero h1 { font-size:22px; }
+      .post-card img { height:120px; }
+    }
+  </style>
+</head>
+<body>
+  <header class="site-header">
+    <div class="container">
+      <a class="brand" href="index.html">AscendemicX</a>
+      <nav class="main-nav">
+        <a href="index.html">Home</a>
+        <a href="mentor.html">Mentor</a>
+        <a href="faculties.html">Faculties</a>
+        <a href="courses.html">Courses</a>
+        <a href="career.html">Career</a>
+        <a href="blog.html" aria-current="page">Blog</a>
+        <a href="about.html">About</a>
+        <a href="contact.html">Contact</a>
+      </nav>
+    </div>
+  </header>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Blog</h1>
+      <p>Latest news, articles and updates from AscendemicX. Browse topics, tutorials and announcements.</p>
+    </section>
+
+    <section id="posts-section">
+      <div id="posts-grid" class="posts-grid">
+        <!-- Cards will be inserted here by JS -->
+      </div>
+
+      <div id="posts-loader" class="loader" style="display:none;">Loading posts…</div>
+      <div id="posts-empty" class="empty" style="display:none;">No posts found yet.</div>
+    </section>
+  </main>
+
+  <footer class="site-footer">
+    <div class="container">© AscendemicX 2025</div>
+  </footer>
+
+  <!-- Optional: Firestore compat SDK (if you use compat like other pages) -->
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-app-compat.js"></script>
+  <script src="https://www.gstatic.com/firebasejs/9.22.2/firebase-firestore-compat.js"></script>
+  <script src="assets/js/firebase-init.js"></script>
+
+  <script>
+    // Utility to create a post card element
+    function createPostCard(post) {
+      const wrapper = document.createElement('article');
+      wrapper.className = 'post-card';
+
+      const img = document.createElement('img');
+      img.src = post.imageUrl || 'assets/images/blog-placeholder.png';
+      img.alt = post.title || 'Blog image';
+      wrapper.appendChild(img);
+
+      const body = document.createElement('div');
+      body.className = 'post-body';
+
+      const title = document.createElement('h3');
+      title.className = 'post-title';
+      title.textContent = post.title || 'Untitled';
+      body.appendChild(title);
+
+      const excerpt = document.createElement('p');
+      excerpt.className = 'post-excerpt';
+      excerpt.textContent = post.excerpt || (post.content ? post.content.slice(0, 140) + '…' : '');
+      body.appendChild(excerpt);
+
+      const meta = document.createElement('div');
+      meta.className = 'post-meta';
+
+      const date = document.createElement('div');
+      date.style.color = '#666';
+      date.style.fontSize = '13px';
+      if (post.createdAt) {
+        // If Firestore timestamp, convert
+        try {
+          const d = (post.createdAt.toDate) ? post.createdAt.toDate() : new Date(post.createdAt);
+          date.textContent = d.toLocaleDateString();
+        } catch(e) {
+          date.textContent = '';
+        }
+      }
+      meta.appendChild(date);
+
+      const read = document.createElement('a');
+      read.className = 'read-more';
+      // If you use slugs, link to `post.slug` else to a details page with id.
+      read.href = post.slug ? `post.html?slug=${encodeURIComponent(post.slug)}` : '#';
+      read.textContent = 'Read more';
+      meta.appendChild(read);
+
+      body.appendChild(meta);
+      wrapper.appendChild(body);
+      return wrapper;
+    }
+
+    async function loadPostsFromFirestore() {
+      const grid = document.getElementById('posts-grid');
+      const loader = document.getElementById('posts-loader');
+      const empty = document.getElementById('posts-empty');
+
+      loader.style.display = 'block';
+      empty.style.display = 'none';
+      grid.innerHTML = '';
+
+      try {
+        if (!firebase || !firebase.firestore) throw new Error('Firebase not initialized');
+        const db = firebase.firestore();
+        // Adjust collection name if needed
+        const snapshot = await db.collection('blog_posts').orderBy('createdAt', 'desc').limit(12).get();
+
+        if (snapshot.empty) {
+          empty.style.display = 'block';
+        } else {
+          snapshot.forEach(doc => {
+            const data = doc.data();
+            // include id/slug if needed
+            data.id = doc.id;
+            const card = createPostCard(data);
+            grid.appendChild(card);
+          });
+        }
+      } catch (err) {
+        // Firestore not ready — fallback to sample posts (graceful)
+        console.warn('Could not load posts from Firestore:', err);
+        const sample = [
+          {
+            title: 'Welcome to our blog',
+            excerpt: 'This is the first post to introduce our blog. We will publish articles about courses, tips and updates.',
+            imageUrl: 'assets/images/blog-1.jpg',
+            slug: 'welcome'
+          },
+          {
+            title: 'How to prepare for interviews',
+            excerpt: 'Practical interview tips for students and freshers to ace technical and HR rounds.',
+            imageUrl: 'assets/images/blog-2.jpg',
+            slug: 'interview-prep'
+          },
+          {
+            title: 'Top 10 learning resources',
+            excerpt: 'A curated list of online resources, tutorials and documentation to accelerate your learning.',
+            imageUrl: 'assets/images/blog-3.jpg',
+            slug: 'learning-resources'
+          }
+        ];
+
+        sample.forEach(p => grid.appendChild(createPostCard(p)));
+      } finally {
+        loader.style.display = 'none';
+      }
+    }
+
+    // Kick off on load
+    document.addEventListener('DOMContentLoaded', () => {
+      loadPostsFromFirestore();
+    });
+  </script>
+
+  <script src="assets/js/main.js"></script>
+</body>
+</html>
